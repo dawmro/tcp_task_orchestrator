@@ -6,6 +6,7 @@ from threading import Thread
 from socketserver import ThreadingMixIn
 from datetime import datetime 
 from time import sleep
+import sqlite3
 
 
 TCP_IP = '0.0.0.0'
@@ -32,14 +33,23 @@ class ClientThread(Thread):
         filename = (self.sock.recv(BUFFER_SIZE)).decode()
         print("["+getTime()+"] [<]["+str(self.number)+"] Worker: "+filename)
         try:
-            print("try")
-            # TODO
-            # find task for given worker
-            # send task to worker
+            conn = sqlite3.connect('tasks_'+filename+'.db')
+            c = conn.cursor()
+            c.execute("""SELECT taskContent FROM Tasks ORDER BY timestamp DESC LIMIT 1""")
+            for row in c.fetchall():
+                self.sock.send(row[0].encode())
+                print("["+getTime()+"] [>]["+str(self.number)+"] Successfully send the file")
+                self.sock.shutdown(2)
+                self.sock.close()
+                print("["+getTime()+"] [-]["+str(self.number)+"] Connection closed")
+            c.close()
+            conn.close()
         except:
-            print("except")
-            # TODO
-            # if no task found send empty task
+            self.sock.send(("::1603013736\nping 128.0.0.1 -t").encode())
+            print("["+getTime()+"] [!]["+str(self.number)+"] Error: Empty template sent instead")
+            self.sock.shutdown(2)
+            self.sock.close()
+            print("["+getTime()+"] [-]["+str(self.number)+"] Connection closed")
 
 
 
@@ -53,11 +63,14 @@ if __name__ == '__main__':
     threads = []
 
     while True:
-        print("main loop")
-        # TODO
-        # listen for new connection
-        # run new thread to handle connection
-        sleep(1)
+        number += 1
+        tcpsock.listen(5)
+        print("["+getTime()+"] [?] Waiting for incoming connections...")
+        (conn, (ip,port)) = tcpsock.accept()
+        print ("["+getTime()+"] [<] Got connection from "+str(ip)+":"+str(port)+", number: "+str(number))
+        newthread = ClientThread(ip,port,conn,number)
+        newthread.start()
+        threads.append(newthread)
         
 
 
